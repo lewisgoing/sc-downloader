@@ -1,0 +1,33 @@
+{
+    "manifest_version": 3,
+    "name": "SoundCloud Track Downloader",
+    "version": "1.0",
+    "description": "Download tracks from SoundCloud with metadata",
+    "permissions": [
+      "scripting"
+    ],
+    "host_permissions": [
+      "https://*.soundcloud.com/*",
+      "https://api-v2.soundcloud.com/*",
+      "https://api.soundcloud.com/*",
+      "https://a-v2.sndcdn.com/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["https://*.soundcloud.com/*"],
+        "js": ["content.js"]
+      }
+    ],
+    "action": {
+      "default_icon": {
+        "16": "download.svg",
+        "48": "download.svg",
+        "128": "download.svg"
+      }
+    },
+    "icons": {
+      "16": "download.svg",
+      "48": "download.svg",
+      "128": "download.svg"
+    }
+  }

@@ -115,7 +115,7 @@ const ID3Writer = {
         bytes[2] = (size >> 7) & 0x7F;
         bytes[3] = size & 0x7F;
         return bytes;
-    }
+      }
     
       // Size (excluding header, synchsafe)
       const synchsafeSize = encodeSynchsafe(totalFrameSize);
@@ -123,7 +123,6 @@ const ID3Writer = {
       finalBuffer[7] = synchsafeSize[1];
       finalBuffer[8] = synchsafeSize[2];
       finalBuffer[9] = synchsafeSize[3];
-      
       
       // Write frames
       let offset = 10;
@@ -137,10 +136,44 @@ const ID3Writer = {
       
       return finalBuffer.buffer;
     }
-  };
-  
-let buttonAdded = false;
-  
+};
+
+let clientIdCache = null;
+
+async function getClientId() {
+  if (clientIdCache) return clientIdCache;
+
+  try {
+    const response = await fetch('https://soundcloud.com/');
+    const text = await response.text();
+    
+    const matches = text.match(/src="(https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+)/g);
+    if (!matches) {
+      throw new Error('Could not find app script URL');
+    }
+
+    for (const match of matches) {
+      const scriptUrl = match.slice(5).replace('"', '');
+      console.log('Checking script:', scriptUrl);
+      
+      const scriptResponse = await fetch(scriptUrl);
+      const scriptText = await scriptResponse.text();
+      
+      const clientIdMatch = scriptText.match(/client_id\s*:\s*"([^"]+)"/);
+      if (clientIdMatch) {
+        clientIdCache = clientIdMatch[1];
+        console.log('Found client ID:', clientIdCache);
+        return clientIdCache;
+      }
+    }
+
+    throw new Error('Could not find client ID in any script');
+  } catch (error) {
+    console.error('Error getting client ID:', error);
+    return null;
+  }
+}
+
 async function getTrackData(trackElement = null) {
   try {
     let urlMatch, clientId;
@@ -201,8 +234,7 @@ async function getTrackData(trackElement = null) {
       console.log('Using avatar URL as artwork:', artworkUrl);
     }
 
-    // Use the track title directly for filename
-    const cleanTitle = trackData.title.replace(/[<>:"/\\|?*]/g, '').trim().replace(/\s+/g, '_');
+    const cleanTitle = trackData.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
 
     return {
       url: streamData.url,
@@ -220,7 +252,7 @@ async function getTrackData(trackElement = null) {
     return null;
   }
 }
-  
+
 async function downloadTrack(trackData) {
   try {
     console.log('Starting download...');
@@ -296,38 +328,7 @@ async function downloadTrack(trackData) {
     return false;
   }
 }
-  
-async function getClientId() {
-  try {
-    const response = await fetch('https://soundcloud.com/');
-    const text = await response.text();
-    
-    const matches = text.match(/src="(https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+)/g);
-    if (!matches) {
-      throw new Error('Could not find app script URL');
-    }
 
-    for (const match of matches) {
-      const scriptUrl = match.slice(5).replace('"', '');
-      console.log('Checking script:', scriptUrl);
-      
-      const scriptResponse = await fetch(scriptUrl);
-      const scriptText = await scriptResponse.text();
-      
-      const clientIdMatch = scriptText.match(/client_id\s*:\s*"([^"]+)"/);
-      if (clientIdMatch) {
-        console.log('Found client ID:', clientIdMatch[1]);
-        return clientIdMatch[1];
-      }
-    }
-
-    throw new Error('Could not find client ID in any script');
-  } catch (error) {
-    console.error('Error getting client ID:', error);
-    return null;
-  }
-}
-  
 function createDownloadButton(trackElement = null) {
   // Check if button already exists on this element
   if (trackElement) {
@@ -359,13 +360,31 @@ function createDownloadButton(trackElement = null) {
   let actionsContainer;
   if (trackElement) {
     // For tracks in lists, playlists, etc.
-    actionsContainer = trackElement.querySelector('.sc-button-group, .soundActions');
+    actionsContainer = trackElement.querySelector(
+      '.sc-button-group, ' + 
+      '.soundActions, ' + 
+      '.trackActions, ' + 
+      '.sound__actions, ' + 
+      '.trackList__item .sc-button-group, ' +
+      '.sound__body .sc-button-group, ' +
+      '.compactTrackList__item .sc-button-group'
+    );
   } else {
     // For track pages
-    actionsContainer = document.querySelector('.soundActions .sc-button-group');
+    actionsContainer = document.querySelector(
+      '.soundActions .sc-button-group, ' +
+      '.trackView .soundActions .sc-button-group, ' + 
+      '.sound-section .soundActions .sc-button-group, ' +
+      '#content .soundActions .sc-button-group, ' +
+      '.l-page .soundActions .sc-button-group, ' + 
+      '.sound__actions .sc-button-group'
+    );
   }
 
   if (!actionsContainer) return;
+
+  // Prevent duplicate buttons
+  if (actionsContainer.querySelector('.sc-button-download')) return;
 
   // Add click handler with download functionality
   downloadButton.addEventListener('click', async (event) => {
@@ -381,7 +400,6 @@ function createDownloadButton(trackElement = null) {
         throw new Error('Could not find track data');
       }
       
-      console.log('Starting download with track data:', trackData);
       const success = await downloadTrack(trackData);
       if (!success) {
         throw new Error('Download failed');
@@ -395,43 +413,109 @@ function createDownloadButton(trackElement = null) {
     }
   });
 
+  // Append button
   actionsContainer.appendChild(downloadButton);
 }
-  
-// Function to add download buttons to various track elements
+
 function addDownloadButtons() {
-  // Add buttons to track pages
-  const trackPageButton = document.querySelector('.soundActions .sc-button-group');
-  if (trackPageButton && !trackPageButton.querySelector('.sc-button-download')) {
-    createDownloadButton();
+    // Selectors for various track types
+    const trackSelectors = [
+      '.sound__body',
+      '.soundList__item',
+      '.userStreamItem',
+      '.trackItem',
+      '.compactTrackList__item',
+      '.stream__header-top-track',
+      '.heroPlaylist__track',
+      '.soundTitle__containerTop',
+      '.trackList__item',
+      '[role="listitem"] .sound',
+      '.stream__list .sound',
+      '.sound',
+      '.trackList__item',
+      '.sound-item',
+      '.listenEngagement__item',
+      '.track__item'
+    ];
+  
+    // Combine selectors and query
+    const trackElements = document.querySelectorAll(trackSelectors.join(', '));
+  
+    trackElements.forEach(trackElement => {
+      // Ensure the track has a link to resolve track data
+      const trackLink = trackElement.querySelector('a.soundTitle__title, a[href^="/"]');
+      if (trackLink) {
+        createDownloadButton(trackElement);
+      }
+    });
+  
+    // Special handling for track pages
+    const trackPageContainers = [
+      '.soundActions',
+      '.trackView .soundActions',
+      '.sound-section .soundActions',
+      '#content .soundActions',
+      '.l-page .soundActions',
+      '.sound__actions',
+      '.single-track .soundActions'
+    ];
+  
+    trackPageContainers.forEach(selector => {
+      const container = document.querySelector(selector);
+      if (container && !container.querySelector('.sc-button-download')) {
+        createDownloadButton();
+      }
+    });
   }
-
-  // Add buttons to tracks in lists (e.g., playlists, profiles, feed)
-  const trackElements = document.querySelectorAll(
-    '.sound__body, ' +  // General track body class
-    '.soundList__item, ' +  // Playlist or feed track
-    '.userStreamItem, ' +  // User stream track
-    '.trackItem, ' +  // Another potential track item class
-    '.compactTrackList__item' // Another potential track list class
-  );
-
-  trackElements.forEach(trackElement => {
-    if (!trackElement.querySelector('.sc-button-download')) {
-      createDownloadButton(trackElement);
-    }
-  });
+  
+  // Debounce function to prevent excessive calls
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+  
+  // Modified observer setup
+  function setupObserver() {
+    const debouncedAddButtons = debounce(addDownloadButtons, 300);
+  
+    const observer = new MutationObserver((mutations) => {
+      // Check if any relevant mutations occurred
+      const hasRelevantMutation = mutations.some(mutation => 
+        mutation.type === 'childList' && 
+        Array.from(mutation.addedNodes).some(node => 
+          node.nodeType === Node.ELEMENT_NODE && 
+          (
+            node.matches?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions') || 
+            node.querySelector?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions')
+          )
+        )
+      );
+  
+      if (hasRelevantMutation) {
+        debouncedAddButtons();
+      }
+    });
+  
+    // Start observing the entire document
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  
+    // Initial button addition with a slight delay to ensure page is fully loaded
+    setTimeout(addDownloadButtons, 500);
+  }
+  
+  // Run setup when page is fully loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupObserver);
+  } else {
+    setupObserver();
 }
-
-// Create and start the observer
-const observer = new MutationObserver(() => {
-  addDownloadButtons();
-});
-
-// Start observing the entire document for changes
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
-
-// Try to add buttons immediately
-addDownloadButtons();

@@ -1,6 +1,4 @@
-// content.js
-
-// Simple ID3v2.3 tag writer
+// ID3 Writer for metadata
 const ID3Writer = {
     encoders: {
       string: (str) => new TextEncoder().encode(str),
@@ -138,6 +136,7 @@ const ID3Writer = {
     }
 };
 
+// Client ID management
 let clientIdCache = null;
 
 async function getClientId() {
@@ -174,13 +173,12 @@ async function getClientId() {
   }
 }
 
+// Track data retrieval
 async function getTrackData(trackElement = null) {
   try {
     let urlMatch, clientId;
 
-    // Try to get track data from the passed element or current page
     if (trackElement) {
-      // Extract track URL from the element
       const linkElement = trackElement.querySelector('a.soundTitle__title, a[href^="/"]');
       if (!linkElement) return null;
 
@@ -189,7 +187,6 @@ async function getTrackData(trackElement = null) {
       
       if (!urlMatch) return null;
     } else {
-      // Current page URL matching
       urlMatch = window.location.href.match(/soundcloud\.com\/([^\/]+\/[^\/\?]+)/);
       if (!urlMatch) {
         throw new Error('Could not find track URL');
@@ -224,7 +221,6 @@ async function getTrackData(trackElement = null) {
       throw new Error('No stream URL in response');
     }
 
-    // Get artwork URL from track or user avatar
     let artworkUrl = null;
     if (trackData.artwork_url) {
       artworkUrl = trackData.artwork_url.replace('-large.', '-t500x500.');
@@ -234,11 +230,18 @@ async function getTrackData(trackElement = null) {
       console.log('Using avatar URL as artwork:', artworkUrl);
     }
 
-    const cleanTitle = trackData.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+    const sanitizeFilename = (str) => {
+      return str
+        .replace(/[<>:"/\\|?*]/g, '') // Remove invalid filename characters
+        .replace(/\s+/g, ' ')         // Replace multiple spaces with single space
+        .trim();
+    };
+
+    const filename = `${sanitizeFilename(trackData.title)}.mp3`;
 
     return {
       url: streamData.url,
-      filename: `${cleanTitle}.mp3`,
+      filename: filename,
       artworkUrl: artworkUrl,
       metadata: {
         title: trackData.title,
@@ -253,23 +256,20 @@ async function getTrackData(trackElement = null) {
   }
 }
 
+// Track download functionality
 async function downloadTrack(trackData) {
   try {
     console.log('Starting download...');
     
-    // Download the track using fetch with streaming
-    console.log('Downloading track from:', trackData.url);
     const trackResponse = await fetch(trackData.url);
     if (!trackResponse.ok) {
       throw new Error('Track download failed');
     }
 
-    // Create a new ReadableStream to handle the audio data
     const reader = trackResponse.body.getReader();
     const chunks = [];
     let totalLength = 0;
 
-    // Read the stream chunk by chunk
     while (true) {
       const {done, value} = await reader.read();
       
@@ -282,7 +282,6 @@ async function downloadTrack(trackData) {
       totalLength += value.length;
     }
 
-    // Combine all chunks into a single ArrayBuffer
     const trackArrayBuffer = new ArrayBuffer(totalLength);
     const uint8View = new Uint8Array(trackArrayBuffer);
     let position = 0;
@@ -294,7 +293,6 @@ async function downloadTrack(trackData) {
 
     console.log('Track data combined:', trackArrayBuffer.byteLength, 'bytes');
 
-    // Download artwork if available
     let artworkBuffer = null;
     if (trackData.artworkUrl) {
       console.log('Downloading artwork from:', trackData.artworkUrl);
@@ -305,12 +303,10 @@ async function downloadTrack(trackData) {
       }
     }
 
-    // Add metadata and artwork
     console.log('Writing ID3 tags with metadata:', trackData.metadata);
     const taggedArrayBuffer = ID3Writer.write(trackArrayBuffer, trackData.metadata, artworkBuffer);
     console.log('Final file size:', taggedArrayBuffer.byteLength, 'bytes');
 
-    // Download the file
     const blob = new Blob([taggedArrayBuffer], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
     
@@ -329,14 +325,84 @@ async function downloadTrack(trackData) {
   }
 }
 
+// Grid view selectors for debugging
+const gridViewSelectors = [
+  '.playableTile',
+  '.soundBadge',
+  '.trackItem__content',
+  '.trackList__item',
+  '.sound__content',
+  '.soundTitle__titleContainer'
+];
+
+// Download button creation for grid view
+function createGridViewDownloadButton(trackElement) {
+  const downloadButton = document.createElement('button');
+  downloadButton.className = 'sc-button-download playableTile__actionButton sc-button sc-button-small sc-button-icon sc-button-lightfg sc-button-nostyle';
+  downloadButton.setAttribute('title', 'Download');
+  downloadButton.setAttribute('aria-label', 'Download');
+  downloadButton.setAttribute('tabindex', '0');
+
+  downloadButton.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3,11 L3,13 L13,13 L13,11 L3,11 Z M3,4 L13,4 L8,10 L3,4 Z M6,2 L6,4 L10,4 L10,2 L6,2 Z" fill="#ffffff"/>
+    </svg>
+  `;
+
+  const playableTile = trackElement.closest('.playableTile');
+  if (playableTile) {
+    const actionWrapper = playableTile.querySelector('.playableTile__actionWrapper');
+    if (actionWrapper && !actionWrapper.querySelector('.sc-button-download')) {
+      actionWrapper.appendChild(downloadButton);
+
+      downloadButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        downloadButton.style.opacity = '0.5';
+        
+        try {
+          const trackData = await getTrackData(trackElement);
+          if (!trackData) {
+            throw new Error('Could not find track data');
+          }
+          
+          const success = await downloadTrack(trackData);
+          if (!success) {
+            throw new Error('Download failed');
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          alert(error.message || 'Download failed. Please try again.');
+        } finally {
+          downloadButton.style.opacity = '1';
+        }
+      });
+    }
+  }
+}
+
+// Download button creation for regular view
 function createDownloadButton(trackElement = null) {
-  // Check if button already exists on this element
+  // Check for existing button on this element
   if (trackElement) {
-    const existingButton = trackElement.querySelector('.sc-button-download');
-    if (existingButton) return;
+    if (trackElement.querySelector('.sc-button-download') || 
+        trackElement.closest('.sound__body, .soundList__item')?.querySelector('.sc-button-download')) {
+      return;
+    }
+  }
+
+  // For track pages, check if button already exists
+  const existingButton = document.querySelector('.sc-button-download');
+  if (!trackElement && existingButton) {
+    return;
+  }
+
+  // Check if this is a grid view tile
+  if (trackElement && trackElement.closest('.playableTile')) {
+    return createGridViewDownloadButton(trackElement);
   }
   
-  // Create download button
   const downloadButton = document.createElement('button');
   downloadButton.className = 'sc-button-download sc-button-secondary sc-button sc-button-small sc-button-responsive';
   downloadButton.setAttribute('title', 'Download track with metadata');
@@ -346,6 +412,7 @@ function createDownloadButton(trackElement = null) {
   downloadButton.style.height = '26px';
   downloadButton.style.padding = '5px';
   downloadButton.style.minWidth = '26px';
+
   downloadButton.style.display = 'flex';
   downloadButton.style.alignItems = 'center';
   downloadButton.style.justifyContent = 'center';
@@ -359,7 +426,6 @@ function createDownloadButton(trackElement = null) {
   // Determine where to add the button
   let actionsContainer;
   if (trackElement) {
-    // For tracks in lists, playlists, etc.
     actionsContainer = trackElement.querySelector(
       '.sc-button-group, ' + 
       '.soundActions, ' + 
@@ -370,7 +436,6 @@ function createDownloadButton(trackElement = null) {
       '.compactTrackList__item .sc-button-group'
     );
   } else {
-    // For track pages
     actionsContainer = document.querySelector(
       '.soundActions .sc-button-group, ' +
       '.trackView .soundActions .sc-button-group, ' + 
@@ -391,7 +456,6 @@ function createDownloadButton(trackElement = null) {
     event.preventDefault();
     event.stopPropagation();
     
-    // Show loading state
     downloadButton.style.opacity = '0.5';
     
     try {
@@ -408,114 +472,148 @@ function createDownloadButton(trackElement = null) {
       console.error('Error:', error);
       alert(error.message || 'Download failed. Please try again.');
     } finally {
-      // Reset button state
       downloadButton.style.opacity = '1';
     }
   });
 
-  // Append button
   actionsContainer.appendChild(downloadButton);
 }
 
+// Main function to add download buttons
 function addDownloadButtons() {
-    // Selectors for various track types
-    const trackSelectors = [
-      '.sound__body',
-      '.soundList__item',
-      '.userStreamItem',
-      '.trackItem',
-      '.compactTrackList__item',
-      '.stream__header-top-track',
-      '.heroPlaylist__track',
-      '.soundTitle__containerTop',
-      '.trackList__item',
-      '[role="listitem"] .sound',
-      '.stream__list .sound',
-      '.sound',
-      '.trackList__item',
-      '.sound-item',
-      '.listenEngagement__item',
-      '.track__item'
-    ];
-  
-    // Combine selectors and query
-    const trackElements = document.querySelectorAll(trackSelectors.join(', '));
-  
-    trackElements.forEach(trackElement => {
-      // Ensure the track has a link to resolve track data
+  // Debug logging for grid view elements
+  console.log('Searching for grid view tracks...');
+  gridViewSelectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    console.log(`Found ${elements.length} elements for selector: ${selector}`);
+  });
+
+  // Track selectors including grid view
+  const trackSelectors = [
+    '.sound__body',
+    '.soundList__item',
+    '.userStreamItem',
+    '.trackItem',
+    '.compactTrackList__item',
+    '.stream__header-top-track',
+    '.heroPlaylist__track',
+    '.soundTitle__containerTop',
+    '.trackList__item',
+    '[role="listitem"] .sound',
+    '.stream__list .sound',
+    '.sound',
+    '.trackList__item',
+    '.sound-item',
+    '.listenEngagement__item',
+    '.track__item',
+    '.playableTile',
+    '.soundBadge',
+    '.trackItem__content'
+  ];
+
+  // Combine selectors and query
+  const trackElements = document.querySelectorAll(trackSelectors.join(', '));
+  console.log(`Total track elements found: ${trackElements.length}`);
+
+  // Keep track of elements that already have buttons
+  const processedElements = new Set();
+
+  trackElements.forEach(trackElement => {
+    // Skip if already processed
+    if (processedElements.has(trackElement)) {
+      console.log('Skipping already processed element');
+      return;
+    }
+
+    // Skip if already has button
+    if (trackElement.querySelector('.sc-button-download')) {
+      console.log('Skipping element with existing button');
+      return;
+    }
+
+    // Check for grid view
+    const isGridView = trackElement.closest('.playableTile');
+    if (isGridView) {
+      console.log('Processing grid view element');
+      const actionWrapper = isGridView.querySelector('.playableTile__actionWrapper');
+      if (actionWrapper) {
+        createGridViewDownloadButton(trackElement);
+      }
+    } else {
+      // Regular view
       const trackLink = trackElement.querySelector('a.soundTitle__title, a[href^="/"]');
       if (trackLink) {
         createDownloadButton(trackElement);
       }
-    });
-  
-    // Special handling for track pages
-    const trackPageContainers = [
-      '.soundActions',
-      '.trackView .soundActions',
-      '.sound-section .soundActions',
-      '#content .soundActions',
-      '.l-page .soundActions',
-      '.sound__actions',
-      '.single-track .soundActions'
-    ];
-  
-    trackPageContainers.forEach(selector => {
-      const container = document.querySelector(selector);
-      if (container && !container.querySelector('.sc-button-download')) {
-        createDownloadButton();
-      }
-    });
-  }
-  
-  // Debounce function to prevent excessive calls
-  function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
+    }
+
+    // Mark as processed
+    processedElements.add(trackElement);
+  });
+}
+
+// Debounce function
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
       clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
+      func(...args);
     };
-  }
-  
-  // Modified observer setup
-  function setupObserver() {
-    const debouncedAddButtons = debounce(addDownloadButtons, 300);
-  
-    const observer = new MutationObserver((mutations) => {
-      // Check if any relevant mutations occurred
-      const hasRelevantMutation = mutations.some(mutation => 
-        mutation.type === 'childList' && 
-        Array.from(mutation.addedNodes).some(node => 
-          node.nodeType === Node.ELEMENT_NODE && 
-          (
-            node.matches?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions') || 
-            node.querySelector?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions')
-          )
-        )
-      );
-  
-      if (hasRelevantMutation) {
-        debouncedAddButtons();
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Observer setup
+function setupObserver() {
+  const debouncedAddButtons = debounce(() => {
+    // Remove any duplicate buttons first
+    const buttons = document.querySelectorAll('.sc-button-download');
+    buttons.forEach((button, index) => {
+      const parent = button.closest('.sound__body, .soundList__item, .playableTile');
+      if (parent) {
+        const buttonsInParent = parent.querySelectorAll('.sc-button-download');
+        if (buttonsInParent.length > 1) {
+          // Keep only the first button
+          Array.from(buttonsInParent).slice(1).forEach(b => b.remove());
+        }
       }
     });
-  
-    // Start observing the entire document
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-  
-    // Initial button addition with a slight delay to ensure page is fully loaded
-    setTimeout(addDownloadButtons, 500);
-  }
-  
-  // Run setup when page is fully loaded
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupObserver);
-  } else {
-    setupObserver();
+    
+    addDownloadButtons();
+  }, 300);
+
+  const observer = new MutationObserver((mutations) => {
+    const hasRelevantMutation = mutations.some(mutation => 
+      mutation.type === 'childList' && 
+      Array.from(mutation.addedNodes).some(node => 
+        node.nodeType === Node.ELEMENT_NODE && 
+        (
+          node.matches?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions, .playableTile') || 
+          node.querySelector?.('.sound, .track, .trackList__item, .userStreamItem, .soundActions, .playableTile')
+        )
+      )
+    );
+
+    if (hasRelevantMutation) {
+      debouncedAddButtons();
+    }
+  });
+
+  // Start observing the entire document
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  // Initial button addition with delay
+  setTimeout(addDownloadButtons, 500);
+}
+
+// Run setup when page is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupObserver);
+} else {
+  setupObserver();
 }

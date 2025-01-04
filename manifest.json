@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "SoundCloud Track Downloader",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Download tracks from SoundCloud with metadata",
     "permissions": [
       "scripting"
@@ -15,7 +15,8 @@
     "content_scripts": [
       {
         "matches": ["https://*.soundcloud.com/*"],
-        "js": ["content.js"]
+        "js": ["content.js"],
+        "run_at": "document_idle"
       }
     ],
     "action": {

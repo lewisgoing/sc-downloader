@@ -18,17 +18,5 @@
         "js": ["content.js"],
         "run_at": "document_idle"
       }
-    ],
-    "action": {
-      "default_icon": {
-        "16": "download.svg",
-        "48": "download.svg",
-        "128": "download.svg"
-      }
-    },
-    "icons": {
-      "16": "download.svg",
-      "48": "download.svg",
-      "128": "download.svg"
-    }
+    ]
   }

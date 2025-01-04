@@ -481,12 +481,33 @@ function createDownloadButton(trackElement = null) {
 
 // Main function to add download buttons
 function addDownloadButtons() {
-  // Debug logging for grid view elements
-  console.log('Searching for grid view tracks...');
-  gridViewSelectors.forEach(selector => {
-    const elements = document.querySelectorAll(selector);
-    console.log(`Found ${elements.length} elements for selector: ${selector}`);
-  });
+    // Add button to track page first
+    const isTrackPage = window.location.href.match(/soundcloud\.com\/([^\/]+\/[^\/\?]+)/);
+    if (isTrackPage) {
+      const trackPageContainers = [
+        '.soundActions .sc-button-group',
+        '.trackView .soundActions .sc-button-group',
+        '.sound-section .soundActions .sc-button-group',
+        '#content .soundActions .sc-button-group',
+        '.l-page .soundActions .sc-button-group',
+        '.sound__actions .sc-button-group'
+      ];
+  
+      for (const selector of trackPageContainers) {
+        const container = document.querySelector(selector);
+        if (container && !container.querySelector('.sc-button-download')) {
+          createDownloadButton();
+          break;
+        }
+      }
+    }
+  
+    // Debug logging for grid view elements
+    console.log('Searching for grid view tracks...');
+    gridViewSelectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      console.log(`Found ${elements.length} elements for selector: ${selector}`);
+    });
 
   // Track selectors including grid view
   const trackSelectors = [

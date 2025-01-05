@@ -301,33 +301,38 @@ function getTrackInfo(trackElement) {
   function createGridViewDownloadButton(trackElement) {
     const trackInfo = getTrackInfo(trackElement);
     
-    // Check if there's already a button in the action wrapper
+    // Find the closest playable tile and its action wrapper
     const playableTile = trackElement.closest('.playableTile');
     if (!playableTile) return;
     
     const actionWrapper = playableTile.querySelector('.playableTile__actionWrapper');
-    if (!actionWrapper || actionWrapper.querySelector('.sc-button-download')) {
-      console.log(`Skipping duplicate grid button for: ${trackInfo}`);
-      return;
+    if (!actionWrapper) return;
+
+    // Check if button already exists in the action wrapper or its parent container
+    if (actionWrapper.querySelector('.sc-button-download') || 
+        playableTile.querySelector('.sc-button-download')) {
+        console.log(`Skipping duplicate grid button for: ${trackInfo}`);
+        return;
     }
-  
+
     console.log(`Creating grid view button for: ${trackInfo}`);
-  
+
     const downloadButton = document.createElement('button');
     downloadButton.className = 'sc-button-download playableTile__actionButton sc-button sc-button-small sc-button-icon sc-button-lightfg sc-button-nostyle';
     downloadButton.setAttribute('title', 'Download');
     downloadButton.setAttribute('aria-label', 'Download');
     downloadButton.setAttribute('tabindex', '0');
-  
+
+    // Single SVG instance
     downloadButton.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3,11 L3,13 L13,13 L13,11 L3,11 Z M3,4 L13,4 L8,10 L3,4 Z M6,2 L6,4 L10,4 L10,2 L6,2 Z" fill="#ffffff"/>
-      </svg>
+        <svg width="16" height="16" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3,11 L3,13 L13,13 L13,11 L3,11 Z M3,4 L13,4 L8,10 L3,4 Z M6,2 L6,4 L10,4 L10,2 L6,2 Z" fill="#ffffff"/>
+        </svg>
     `;
-  
+
     actionWrapper.appendChild(downloadButton);
     addDownloadHandler(downloadButton, trackElement);
-  }
+}
   
   function createTrackPageDownloadButton() {
     const trackInfo = getTrackInfo();
@@ -391,13 +396,13 @@ function getTrackInfo(trackElement) {
     const trackInfo = getTrackInfo(trackElement);
     
     if (trackElement) {
-      const buttonGroup = trackElement.querySelector('.sc-button-group');
-      if (buttonGroup?.querySelector('.sc-button-download')) {
-        console.log(`Skipping duplicate button for: ${trackInfo}`);
-        return;
-      }
+        const buttonGroup = trackElement.querySelector('.sc-button-group');
+        if (buttonGroup?.querySelector('.sc-button-download')) {
+            console.log(`Skipping duplicate button for: ${trackInfo}`);
+            return;
+        }
     }
-  
+
     console.log(`Creating download button for: ${trackInfo}`);
     
     const downloadButton = document.createElement('button');
@@ -406,37 +411,47 @@ function getTrackInfo(trackElement) {
     downloadButton.setAttribute('aria-label', 'Download');
     downloadButton.setAttribute('tabindex', '0');
     
-    // Add fixed sizing and padding
-    downloadButton.style.width = '26px';
-    downloadButton.style.height = '26px';
-    downloadButton.style.padding = '5px';
-    downloadButton.style.minWidth = '26px';
+    // Determine if this is a list view button
+    const isListView = trackElement?.closest('.soundList__item, .trackList__item, .compactTrackList__item');
+    
+    // Apply different sizes based on view type
+    if (isListView) {
+        downloadButton.style.width = '22px';
+        downloadButton.style.height = '22px';
+        downloadButton.style.padding = '4px';
+        downloadButton.style.minWidth = '22px';
+    } else {
+        downloadButton.style.width = '26px';
+        downloadButton.style.height = '26px';
+        downloadButton.style.padding = '5px';
+        downloadButton.style.minWidth = '26px';
+    }
+    
     downloadButton.style.display = 'flex';
     downloadButton.style.alignItems = 'center';
     downloadButton.style.justifyContent = 'center';
-  
-    // Modified SVG to prevent duplicate icons
+
     downloadButton.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3,11 L3,13 L13,13 L13,11 L3,11 Z M3,4 L13,4 L8,10 L3,4 Z M6,2 L6,4 L10,4 L10,2 L6,2 Z" fill="rgb(34, 34, 34)"/>
-      </svg>
+        <svg width="16" height="16" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3,11 L3,13 L13,13 L13,11 L3,11 Z M3,4 L13,4 L8,10 L3,4 Z M6,2 L6,4 L10,4 L10,2 L6,2 Z" fill="rgb(34, 34, 34)"/>
+        </svg>
     `;
-  
+
     let actionsContainer;
     if (trackElement) {
-      actionsContainer = trackElement.querySelector('.sc-button-group');
+        actionsContainer = trackElement.querySelector('.sc-button-group');
     } else {
-      actionsContainer = document.querySelector(
-        '.soundActions .sc-button-group, ' +
-        '.trackView .soundActions .sc-button-group'
-      );
+        actionsContainer = document.querySelector(
+            '.soundActions .sc-button-group, ' +
+            '.trackView .soundActions .sc-button-group'
+        );
     }
-  
+
     if (!actionsContainer || actionsContainer.querySelector('.sc-button-download')) return;
-  
+
     actionsContainer.appendChild(downloadButton);
     addDownloadHandler(downloadButton, trackElement);
-  }
+}
 
 function addDownloadButtons() {
   // Add button to track page first

@@ -1,4 +1,4 @@
-# Soun# SoundCloud Track Downloader
+# SoundCloud Track Downloader
 
 A Chrome extension that enables downloading tracks from SoundCloud while preserving metadata and artwork.
 

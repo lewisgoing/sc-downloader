@@ -19,6 +19,7 @@ A Chrome extension that enables downloading tracks from SoundCloud while preserv
 ## Installation
 
 ### From Source
+
 1. Clone or download this repository
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" in the top right corner
@@ -28,6 +29,7 @@ A Chrome extension that enables downloading tracks from SoundCloud while preserv
 ## Usage
 
 After installation, you'll see a download button (↓) appear next to tracks across SoundCloud:
+
 - On track pages: Next to the share and like buttons
 - In playlists: Next to each track
 - In grid view: On hover over album artwork
@@ -38,6 +40,7 @@ Simply click the download button to save the track with its metadata and artwork
 ## Permissions
 
 This extension requires the following permissions:
+
 - `scripting`: Required for adding download buttons to SoundCloud pages
 - Access to soundcloud.com domains: Required for fetching track data and metadata
 - Access to sndcdn.com: Required for accessing SoundCloud's CDN (for artwork)
@@ -45,6 +48,7 @@ This extension requires the following permissions:
 ## Technical Details
 
 The extension includes:
+
 - Metadata preservation using ID3v2.3 tags
 - High-quality MP3 download (best available quality from SoundCloud)
 - Automatic handling of special characters in filenames
